@@ -95,6 +95,9 @@
         10: 'Last.fm says the API key is invalid.',
         17: 'Your Last.fm listening history is private. Turn off "Hide recent listening" in Last.fm privacy settings.',
         26: 'This API key was suspended by Last.fm.',
+        8: 'Last.fm had a hiccup. Retrying… (new accounts can take a few minutes, or until your first scrobble)',
+        11: 'Last.fm is temporarily offline. Retrying…',
+        16: 'Last.fm had a temporary error. Retrying…',
         29: 'Too many requests to Last.fm. Slowing down.',
       }[data.error] || ('Last.fm error: ' + (data.message || data.error));
       const err = new Error(msg); err.lfm = data.error; throw err;
@@ -437,15 +440,21 @@
     const err = $('setupErr'), btn = $('btnSaveSetup');
     if (!user || !/^[0-9a-f]{32}$/i.test(key)) { err.textContent = 'Enter your username and the 32-character API key.'; err.hidden = false; return; }
     btn.disabled = true; btn.textContent = 'Checking…'; err.hidden = true;
-    try {
-      await lastfmNowPlaying(user, key);
+    const start = () => {
       Object.assign(S, { user, key, manual: false }); saveSettings();
       el.dlgSetup.close();
       track = null; lastPollAt = 0;
       renderEmpty('waiting'); setStatus('Connecting…', '');
       poll();
+    };
+    try {
+      await lastfmNowPlaying(user, key);
+      start();
     } catch (ex) {
-      err.textContent = ex.message || 'Could not reach Last.fm.'; err.hidden = false;
+      // Only a wrong username/key or a private profile stops setup. Temporary Last.fm
+      // failures (e.g. error 8 on brand-new accounts) are retried by the normal polling.
+      if ([6, 10, 17, 26].includes(ex.lfm)) { err.textContent = ex.message; err.hidden = false; }
+      else start();
     } finally { btn.disabled = false; btn.textContent = 'Connect'; }
   });
   $('btnManual').onclick = () => {

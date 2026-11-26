@@ -1,6 +1,6 @@
 // Offline cache. App files: network first (so updates show up), cached copy when offline.
 // Libraries and the Japanese dictionary: cache first (they never change for a given version).
-const VERSION = 'v1';
+const VERSION = 'v2';
 const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'romanize.js', 'manifest.webmanifest',
   'vendor/libs.js', 'icons/icon-192.png', 'icons/apple-touch-icon.png'];
 
