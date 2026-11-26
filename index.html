@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Romaji Lyrics</title>
+  <meta name="description" content="Time-synced romanized lyrics for what you're playing on Spotify.">
+  <meta name="theme-color" content="#15121c" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f7f4ee" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Lyrics">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="bar">
+    <div class="now">
+      <div class="title" id="title">Romaji Lyrics</div>
+      <div class="sub"><span class="dot" id="dot"></span><span id="status">Starting…</span></div>
+    </div>
+    <button class="icon" id="btnSearch" aria-label="Search lyrics">
+      <svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg>
+    </button>
+    <button class="icon" id="btnSettings" aria-label="Settings">
+      <svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
+    </button>
+  </header>
+
+  <main id="lyrics" class="lyrics" aria-live="off"></main>
+
+  <div class="banner" id="syncBanner" hidden>Tap the line that's being sung to sync</div>
+
+  <footer class="controls" id="controls">
+    <button class="pill" id="btnBack" aria-label="Lyrics earlier by half a second">−0.5s</button>
+    <button class="play" id="btnPlay" aria-label="Pause or resume the lyric timer">
+      <svg class="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></svg>
+      <svg class="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12.5-7.5z"/></svg>
+      <span id="clock">0:00</span>
+    </button>
+    <button class="pill" id="btnFwd" aria-label="Lyrics later by half a second">+0.5s</button>
+    <button class="pill" id="btnWrong" aria-label="Wrong lyrics? Pick different ones">Wrong?</button>
+  </footer>
+
+  <!-- First-run setup -->
+  <dialog id="dlgSetup" class="sheet">
+    <form method="dialog" id="formSetup">
+      <h2 tabindex="-1" autofocus>Connect to Last.fm</h2>
+      <p>The app finds out what you're playing on Spotify through Last.fm. It's free and works with Spotify Free.</p>
+      <ol class="steps">
+        <li>Make a free account at <a href="https://www.last.fm/join" target="_blank" rel="noopener">last.fm/join</a>.</li>
+        <li>In Last.fm <a href="https://www.last.fm/settings/applications" target="_blank" rel="noopener">Settings → Applications</a>, connect <b>Spotify</b>.</li>
+        <li>Create an API account at <a href="https://www.last.fm/api/account/create" target="_blank" rel="noopener">last.fm/api/account/create</a> (any app name works, leave the callback URL empty) and copy the <b>API key</b>.</li>
+      </ol>
+      <label>Last.fm username<input id="inUser" autocomplete="username" autocapitalize="off" spellcheck="false" required></label>
+      <label>Last.fm API key<input id="inKey" autocomplete="off" autocapitalize="off" spellcheck="false" required pattern="[0-9a-fA-F]{32}" title="32 letters and numbers"></label>
+      <p class="fine">Saved only on this phone.</p>
+      <div class="row">
+        <button type="button" class="ghost" id="btnManual">Skip, search manually</button>
+        <button type="submit" class="primary" id="btnSaveSetup">Connect</button>
+      </div>
+      <p class="err" id="setupErr" hidden></p>
+    </form>
+  </dialog>
+
+  <!-- Search / pick lyrics -->
+  <dialog id="dlgSearch" class="sheet tall">
+    <form id="formSearch">
+      <div class="row head"><h2 id="searchTitle">Find lyrics</h2><button type="button" class="ghost" data-close>Close</button></div>
+      <div class="searchbox">
+        <input id="inQuery" type="search" placeholder="Song title and artist" autocapitalize="off" spellcheck="false" enterkeyhint="search">
+        <button type="submit" class="primary">Search</button>
+      </div>
+      <p class="fine" id="searchNote"></p>
+      <ul class="results" id="results"></ul>
+    </form>
+  </dialog>
+
+  <!-- Settings -->
+  <dialog id="dlgSettings" class="sheet tall">
+    <form method="dialog">
+      <div class="row head"><h2>Settings</h2><button class="ghost">Done</button></div>
+
+      <fieldset>
+        <legend>Show</legend>
+        <div class="seg" id="segShow">
+          <label><input type="radio" name="show" value="both">Both</label>
+          <label><input type="radio" name="show" value="roma">Romanized</label>
+          <label><input type="radio" name="show" value="orig">Original</label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Chinese pinyin</legend>
+        <div class="seg" id="segTones">
+          <label><input type="radio" name="tones" value="marks">With tones (nǐ hǎo)</label>
+          <label><input type="radio" name="tones" value="none">Plain (ni hao)</label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Text size</legend>
+        <input type="range" id="inSize" min="16" max="34" step="1">
+      </fieldset>
+
+      <fieldset>
+        <legend>Song-start delay <span class="val" id="delayVal"></span></legend>
+        <input type="range" id="inDelay" min="0" max="15" step="0.5">
+        <p class="fine">How long Last.fm takes to report a new song. If lyrics are usually behind, raise this; if they're ahead, lower it.</p>
+      </fieldset>
+
+      <label class="check"><input type="checkbox" id="inWake"> Keep screen on while lyrics are open</label>
+
+      <fieldset>
+        <legend>Last.fm</legend>
+        <p class="fine" id="acctLine"></p>
+        <div class="row"><button type="button" class="ghost" id="btnEditAcct">Change account</button></div>
+      </fieldset>
+
+      <p class="fine">Lyrics from <a href="https://lrclib.net" target="_blank" rel="noopener">LRCLIB</a>. Japanese readings are machine-guessed and can be wrong for some kanji.</p>
+    </form>
+  </dialog>
+
+  <script src="vendor/libs.js"></script>
+  <script src="romanize.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
